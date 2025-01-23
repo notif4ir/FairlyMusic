@@ -9,35 +9,50 @@
             background-color: #121212;
             color: #ffffff;
             font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             height: 100vh;
-            margin: 0;
+            flex-direction: column;
         }
         .container {
-            width: 90%;
-            max-width: 600px;
+            width: 80%;
+            max-width: 900px;
             background: #1e1e1e;
             border-radius: 12px;
             padding: 20px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
+            margin-top: 30px;
         }
-        input, button {
-            margin: 10px 0;
-            width: 100%;
-            padding: 10px;
-            border: none;
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        h1 {
+            font-size: 2em;
+            margin: 0;
+        }
+        .buttons {
+            display: flex;
+            gap: 15px;
+        }
+        input[type="file"], button {
+            padding: 10px 20px;
             border-radius: 8px;
+            border: none;
             background: #333;
             color: #fff;
             font-size: 16px;
+            cursor: pointer;
         }
-        button:hover {
+        button:hover, input[type="file"]:hover {
             background: #444;
         }
         .playlist {
-            margin-top: 20px;
+            margin-top: 30px;
             list-style: none;
             padding: 0;
         }
@@ -45,8 +60,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px;
-            margin: 5px 0;
+            padding: 12px;
+            margin: 8px 0;
             background: #2a2a2a;
             border-radius: 8px;
         }
@@ -89,15 +104,22 @@
         }
         audio {
             width: 100%;
-            margin: 20px 0;
+            margin-top: 20px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>MP3 Playlist</h1>
-        <input id="fileInput" type="file" accept="audio/mp3" multiple>
-        <button id="addButton">Add Selected MP3s</button>
+        <div class="header">
+            <h1>MP3 Playlist</h1>
+            <div class="buttons">
+                <input id="fileInput" type="file" accept="audio/mp3" multiple>
+                <button id="addButton">Add MP3s</button>
+                <button id="exportButton">Export Playlist</button>
+                <input id="importInput" type="file" style="display:none" accept=".fmplaylist">
+                <button id="importButton">Import Playlist</button>
+            </div>
+        </div>
         <audio id="audioPlayer" controls></audio>
         <ul id="playlist" class="playlist"></ul>
     </div>
@@ -108,6 +130,9 @@
         const playlist = document.getElementById('playlist');
         const audioPlayer = document.getElementById('audioPlayer');
         const dbName = "mp3Playlist";
+        const exportButton = document.getElementById('exportButton');
+        const importInput = document.getElementById('importInput');
+        const importButton = document.getElementById('importButton');
 
         let db;
         let tracks = [];
@@ -138,18 +163,6 @@
             const store = transaction.objectStore("tracks");
             store.delete(id);
             transaction.oncomplete = loadTracks;
-        }
-
-        function updateTrack(id, updates) {
-            const transaction = db.transaction(["tracks"], "readwrite");
-            const store = transaction.objectStore("tracks");
-            const request = store.get(id);
-
-            request.onsuccess = function () {
-                const track = { ...request.result, ...updates };
-                store.put(track);
-                transaction.oncomplete = loadTracks;
-            };
         }
 
         function loadTracks() {
@@ -220,6 +233,34 @@
             transaction.oncomplete = loadTracks;
         }
 
+        function exportPlaylist() {
+            const data = tracks.map(track => ({
+                title: track.title,
+                data: Array.from(new Uint8Array(track.data))
+            }));
+
+            const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'playlist.fmplaylist';
+            link.click();
+        }
+
+        function importPlaylist(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function () {
+                const data = JSON.parse(reader.result);
+                data.forEach(item => {
+                    const arrayBuffer = new Uint8Array(item.data).buffer;
+                    saveTrack({ title: item.title, data: arrayBuffer });
+                });
+            };
+            reader.readAsText(file);
+        }
+
         addButton.addEventListener('click', () => {
             const files = fileInput.files;
             if (!files.length) return;
@@ -233,6 +274,10 @@
                 reader.readAsArrayBuffer(file);
             }
         });
+
+        exportButton.addEventListener('click', exportPlaylist);
+        importButton.addEventListener('click', () => importInput.click());
+        importInput.addEventListener('change', importPlaylist);
 
         initDB();
     </script>
